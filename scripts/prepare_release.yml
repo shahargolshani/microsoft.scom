@@ -28,7 +28,7 @@
           - antsibull-changelog
 
     - name: Create release branch
-      ansible.builtin.command: git checkout -b "prepare_{{ version }}_release"  # noqa: command-instead-of-module
+      ansible.builtin.command: git checkout -b "prepare_{{ version }}_release" # noqa: command-instead-of-module
       when: not testrun
       changed_when: true
 
@@ -50,7 +50,7 @@
           changed_when: true
 
         - name: Refresh the changelog
-          ansible.builtin.command: 'antsibull-changelog release --verbose --version {{ version }}'
+          ansible.builtin.command: "antsibull-changelog release --verbose --version {{ version }}"
           changed_when: true
 
         - name: Find the yaml file
@@ -73,7 +73,7 @@
           changed_when: false
 
         - name: Add everything
-          ansible.builtin.command: git add --all  # noqa: command-instead-of-module
+          ansible.builtin.command: git add --all # noqa: command-instead-of-module
           when: not testrun
           changed_when: true
 
@@ -81,7 +81,7 @@
           #   0 -> repository is clean, nothing to commit
           #   1 -> the opposite
         - name: Commit everything
-          ansible.builtin.shell: 'git diff-index --quiet HEAD || git commit -m "prepare {{ version }} release"'  # noqa: command-instead-of-module
+          ansible.builtin.shell: 'git diff-index --quiet HEAD || git commit -m "prepare {{ version }} release"' # noqa: command-instead-of-module
           when: not testrun
           changed_when: true
 

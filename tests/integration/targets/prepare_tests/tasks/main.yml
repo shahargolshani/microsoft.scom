@@ -1,0 +1,40 @@
+---
+# Integration test setup — runs before every SCOM integration test target.
+# Verifies the OperationsManager PS module is present and sets shared test facts.
+
+- name: Verify OperationsManager PowerShell module is available
+  ansible.windows.win_powershell:
+    script: |
+      $modern = Get-Module -Name OperationsManager -ListAvailable
+      $core_snapin = Get-PSSnapin -Name "Microsoft.EnterpriseManagement.Core.Cmdlets" -Registered -ErrorAction SilentlyContinue
+      if ($null -eq $modern -and $null -eq $core_snapin) {
+        throw "OperationsManager PowerShell module is not installed on this host."
+      }
+      $Ansible.Changed = $false
+  register: _scom_module_check
+
+- name: Verify SCOM auto-connection is active on this host
+  ansible.windows.win_powershell:
+    script: |
+      try {
+        Import-Module OperationsManager -ErrorAction Stop
+      } catch {
+        Add-PSSnapin "Microsoft.EnterpriseManagement.Core.Cmdlets" -ErrorAction Stop
+        Add-PSSnapin "Microsoft.EnterpriseManagement.Monitoring.Cmdlets" -ErrorAction Stop
+      }
+      $mg = Get-SCOMManagementGroup -ErrorAction Stop
+      if ($null -eq $mg) {
+        throw "The OperationsManager module loaded but no Management Group auto-connection was established. " +
+              "Ensure this test runs directly on the SCOM Management Server via WinRM."
+      }
+      $Ansible.Result.management_group_name = $mg.Name
+      $Ansible.Changed = $false
+  register: _scom_connection_check
+
+- name: Generate unique test ID for this test run
+  ansible.builtin.set_fact:
+    unique_test_id: "test-{{ lookup('password', '/dev/null chars=ascii_letters,digits length=6') | lower }}"
+
+- name: Set shared SCOM test facts
+  ansible.builtin.set_fact:
+    scom_management_group_name: "{{ _scom_connection_check.result.management_group_name }}"

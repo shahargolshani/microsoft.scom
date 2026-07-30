@@ -1,0 +1,154 @@
+---
+# Copyright: (c) 2026, Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+DOCUMENTATION:
+  module: alert
+  short_description: Manage the state of a SCOM alert.
+  description:
+    - Updates the properties or resolution state of an existing SCOM alert identified by its GUID.
+    - Supports assigning an owner, setting a ticket ID, adding custom field values,
+      and changing the resolution state (new/closed).
+    - Idempotent - no change is made when the alert already reflects the desired state.
+    - Supports check mode.
+  extends_documentation_fragment:
+    - microsoft.scom.uses_scom_ps_module
+  options:
+    alert_id:
+      description:
+        - The GUID of the SCOM alert to manage.
+        - Use M(microsoft.scom.alert_info) to discover alert IDs.
+      type: str
+      required: true
+    resolution_state:
+      description:
+        - Desired resolution state for the alert.
+        - C(new) sets ResolutionState to 0 (unresolved/reopened).
+        - C(closed) resolves the alert (ResolutionState 255) via C(Resolve-SCOMAlert).
+        - When omitted, the resolution state is not changed.
+      type: str
+      required: false
+      choices:
+        - new
+        - closed
+    owner:
+      description:
+        - Username to assign as the owner of the alert (e.g. C(CONTOSO\\jsmith)).
+        - When omitted, the owner field is not changed.
+      type: str
+      required: false
+    ticket_id:
+      description:
+        - Ticket or incident reference ID to associate with the alert.
+      type: str
+      required: false
+    custom_field1:
+      description: Value for custom field 1.
+      type: str
+      required: false
+    custom_field2:
+      description: Value for custom field 2.
+      type: str
+      required: false
+    custom_field3:
+      description: Value for custom field 3.
+      type: str
+      required: false
+    custom_field4:
+      description: Value for custom field 4.
+      type: str
+      required: false
+    custom_field5:
+      description: Value for custom field 5.
+      type: str
+      required: false
+    custom_field6:
+      description: Value for custom field 6.
+      type: str
+      required: false
+    custom_field7:
+      description: Value for custom field 7.
+      type: str
+      required: false
+    custom_field8:
+      description: Value for custom field 8.
+      type: str
+      required: false
+    custom_field9:
+      description: Value for custom field 9.
+      type: str
+      required: false
+    custom_field10:
+      description: Value for custom field 10.
+      type: str
+      required: false
+
+EXAMPLES: |
+  - name: Resolve a specific alert
+    microsoft.scom.alert:
+      alert_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      resolution_state: closed
+
+  - name: Assign an owner and ticket ID to an alert
+    microsoft.scom.alert:
+      alert_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      owner: "CONTOSO\\helpdesk"
+      ticket_id: "INC0012345"
+
+  - name: Resolve alert in check mode
+    microsoft.scom.alert:
+      alert_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      resolution_state: closed
+    check_mode: true
+
+  - name: Set custom fields on an alert
+    microsoft.scom.alert:
+      alert_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      custom_field1: "automated-remediation"
+      custom_field2: "priority-p1"
+
+RETURN:
+  alert:
+    description: The SCOM alert object after applying changes (or current state in check mode).
+    returned: always
+    type: dict
+    contains:
+      id:
+        description: GUID of the alert.
+        type: str
+      name:
+        description: Name of the alert.
+        type: str
+      description:
+        description: Description of the alert.
+        type: str
+      severity:
+        description: Severity string (information, warning, critical, unknown).
+        type: str
+      resolution_state:
+        description: Numeric resolution state.
+        type: int
+      resolution_state_name:
+        description: Human-readable resolution state (new, closed, custom_<n>).
+        type: str
+      owner:
+        description: Username of the assigned owner.
+        type: str
+      ticket_id:
+        description: Associated ticket or incident ID.
+        type: str
+      monitoring_object_name:
+        description: Display name of the monitored object that raised the alert.
+        type: str
+      time_raised:
+        description: Timestamp the alert was raised (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      last_modified:
+        description: Timestamp of last modification (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      resolved_by:
+        description: Username who resolved the alert.
+        type: str
+      time_resolved:
+        description: Timestamp the alert was resolved (yyyy-MM-dd HH:mm:ss z).
+        type: str

@@ -3,17 +3,26 @@
 
 namespace: microsoft
 name: scom
-version: 1.0.1
+version: 2.0.0
 readme: README.md
 authors:
   - Microsoft SCOM Collection Contributors (@ansible-collections)
-description: Ansible Collection for interacting with Microsoft System Center Operations Manager
-license_file: LICENSE
+description: >-
+  Ansible Collection for managing Microsoft System Center Operations Manager (SCOM).
+  Includes PowerShell-based Ansible modules for alert management, maintenance mode,
+  and management group operations, as well as an Event Driven Ansible (EDA) source
+  plugin for real-time alert monitoring.
+license:
+  - "GPL-3.0-or-later"
 tags:
   - eda
   - scom
   - monitoring
   - microsoft
+  - windows
+  - modules
+  - alerts
+  - maintenance
 repository: https://github.com/ansible-collections/microsoft.scom
 homepage: https://github.com/ansible-collections/microsoft.scom
 issues: https://github.com/ansible-collections/microsoft.scom/issues
@@ -25,6 +34,18 @@ build_ignore:
   - changelogs/.plugin-cache.yaml
   - .azure-pipelines
   - .vscode
+  - .claude
+  - .cursor
   - .ruff_cache
+  - .flake8
+  - .prettierignore
   - Containerfile
   - scripts
+  - .pytest_cache
+  - tests/integration/inventory.winrm
+  - microsoft-mecm-*.tar.gz
+  - Makefile
+  - CODEOWNERS
+  - CODE_OF_CONDUCT.md
+  - CONTRIBUTING.md
+  - REVIEW_CHECKLIST.md

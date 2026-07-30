@@ -1,0 +1,15 @@
+---
+# Criteria string used to isolate Ansible integration test alerts from any
+# other alerts that may exist in the SCOM environment.
+scom_test_alert_criteria: "Name LIKE '%Ansible%'"
+
+# Test owner value written to the critical alert during alert module tests.
+scom_test_alert_owner: "SCOM_Test_Owner"
+
+# Ticket ID written to the critical alert during alert module tests.
+scom_test_ticket_id: "INC-ANSIBLE-TEST-001"
+
+# Maximum seconds to wait for SCOM to process the Event Log entries and raise alerts.
+# Increase this value if your SCOM polling interval is longer than 60 seconds.
+scom_alert_wait_retries: 12
+scom_alert_wait_delay: 5

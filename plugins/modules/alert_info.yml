@@ -1,0 +1,139 @@
+---
+# Copyright: (c) 2026, Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+DOCUMENTATION:
+  module: alert_info
+  short_description: Retrieve information about SCOM alerts.
+  description:
+    - Returns a list of SCOM alerts matching the specified filter criteria.
+    - Supports filtering by raw SCOM criteria string, severity, resolution state,
+      and monitoring object display name.
+    - This is an info module — it never makes changes and always returns C(changed=false).
+  extends_documentation_fragment:
+    - microsoft.scom.uses_scom_ps_module
+  options:
+    criteria:
+      description:
+        - A raw SCOM criteria expression used to filter alerts, e.g.
+          C((ResolutionState = '0') AND (Severity = '2')).
+        - Combined with AND with the C(severity), C(resolution_state), and
+          C(monitoring_object) filters when those are also specified.
+      type: str
+      required: false
+    severity:
+      description:
+        - Filter alerts by severity level.
+        - When omitted, alerts of all severity levels are returned.
+      type: str
+      required: false
+      choices:
+        - information
+        - warning
+        - critical
+    resolution_state:
+      description:
+        - Filter alerts by resolution state.
+        - C(new) returns only unactioned alerts (ResolutionState 0).
+        - C(closed) returns only closed alerts (ResolutionState 255).
+        - C(any) or omitting the parameter returns alerts in all states.
+      type: str
+      required: false
+      choices:
+        - new
+        - closed
+        - any
+    monitoring_object:
+      description:
+        - Filter alerts by a substring match on the monitoring object's display name.
+      type: str
+      required: false
+
+EXAMPLES: |
+  - name: Get all new critical alerts
+    microsoft.scom.alert_info:
+      severity: critical
+      resolution_state: new
+    register: critical_alerts
+
+  - name: Get alerts matching a custom SCOM criteria string
+    microsoft.scom.alert_info:
+      criteria: "(TimeRaised > '2026-01-01 00:00:00')"
+
+  - name: Get all open warnings for a specific server
+    microsoft.scom.alert_info:
+      severity: warning
+      resolution_state: new
+      monitoring_object: web-server-01
+
+  - name: Get all alerts regardless of state
+    microsoft.scom.alert_info:
+      resolution_state: any
+
+RETURN:
+  alerts:
+    description: List of SCOM alert objects matching the filter.
+    returned: always
+    type: list
+    elements: dict
+    contains:
+      id:
+        description: GUID of the SCOM alert.
+        type: str
+      name:
+        description: Display name of the alert rule or monitor that generated the alert.
+        type: str
+      description:
+        description: Detailed description of the alert.
+        type: str
+      severity:
+        description: Severity of the alert (information, warning, critical, unknown).
+        type: str
+      priority:
+        description: Numeric priority value of the alert.
+        type: int
+      resolution_state:
+        description: Numeric resolution state of the alert (0=New, 255=Closed).
+        type: int
+      resolution_state_name:
+        description: Human-readable resolution state label (new, closed, custom_<n>).
+        type: str
+      monitoring_object_id:
+        description: GUID of the monitored object that generated the alert.
+        type: str
+      monitoring_object_name:
+        description: Display name of the monitored object.
+        type: str
+      monitoring_object_path:
+        description: Full path of the monitored object.
+        type: str
+      monitor_id:
+        description: GUID of the monitor or rule that raised the alert.
+        type: str
+      owner:
+        description: Username of the person assigned to this alert.
+        type: str
+      ticket_id:
+        description: Ticket or incident reference ID associated with the alert.
+        type: str
+      time_raised:
+        description: Timestamp when the alert was first raised (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      time_added:
+        description: Timestamp when the alert was added to the database (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      last_modified:
+        description: Timestamp of the last modification to the alert (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      resolved_by:
+        description: Username of the person who resolved the alert, if resolved.
+        type: str
+      time_resolved:
+        description: Timestamp when the alert was resolved (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      custom_field1:
+        description: Value of custom field 1 on the alert.
+        type: str
+      custom_field2:
+        description: Value of custom field 2 on the alert.
+        type: str

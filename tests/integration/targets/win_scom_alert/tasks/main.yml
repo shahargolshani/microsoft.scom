@@ -1,0 +1,497 @@
+---
+# Integration tests for microsoft.scom.alert and microsoft.scom.alert_info modules.
+#
+# Prerequisites - three SCOM alert rules must be configured on the target SCOM server
+# that fire when the following Windows Application Event Log entries are written:
+#
+#   EventID 9999  →  Critical  alert  (message: "Ansible Integration Test Critical Alert.")
+#   EventID 9998  →  Warning   alert  (message: "Ansible Integration Test Warning Alert.")
+#   EventID 9997  →  Info      alert  (message: "Ansible Integration Test Info Alert.")
+#
+# Create the events manually on the SCOM server to verify the rules are working:
+#   Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9999 -EntryType Error -Message "Ansible Integration Test Critical Alert."
+#   Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9998 -EntryType Error -Message "Ansible Integration Test Warning Alert."
+#   Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9997 -EntryType Error -Message "Ansible Integration Test Info Alert."
+
+- name: Alert and alert_info integration test suite
+  block:
+    # =========================================================
+    # PRE-CLEANUP: close any leftover test alerts from a prior run
+    # =========================================================
+    - name: Query for open integration test alerts left from a previous run
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+      register: _pre_cleanup_alerts
+
+    - name: Close any leftover open integration test alerts
+      microsoft.scom.alert:
+        alert_id: "{{ item.id }}"
+        resolution_state: closed
+      loop: "{{ _pre_cleanup_alerts.alerts }}"
+      when: _pre_cleanup_alerts.alerts | length > 0
+
+    # =========================================================
+    # PHASE 1: Trigger test alerts via Windows Event Log
+    # =========================================================
+    - name: Write Windows Application Event Log entries to trigger SCOM alert rules
+      ansible.windows.win_powershell:
+        script: |
+          Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9999 -EntryType Error -Message "Ansible Integration Test Critical Alert."
+          Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9998 -EntryType Error -Message "Ansible Integration Test Warning Alert."
+          Write-EventLog -LogName "Application" -Source "Application Error" -EventID 9997 -EntryType Error -Message "Ansible Integration Test Info Alert."
+          $Ansible.Changed = $false
+
+    # =========================================================
+    # PHASE 2: Wait for all 3 alerts to appear in SCOM
+    # =========================================================
+    - name: Wait for all 3 integration test alerts to appear in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+      register: _test_alerts
+      until: _test_alerts.alerts | length >= 3
+      retries: "{{ scom_alert_wait_retries }}"
+      delay: "{{ scom_alert_wait_delay }}"
+
+    - name: Assert all 3 expected test alerts are present with correct severity distribution
+      ansible.builtin.assert:
+        that:
+          - _test_alerts.alerts | length >= 3
+          - _test_alerts.alerts | selectattr('severity', 'equalto', 'critical') | list | length >= 1
+          - _test_alerts.alerts | selectattr('severity', 'equalto', 'warning') | list | length >= 1
+          - _test_alerts.alerts | selectattr('severity', 'equalto', 'information') | list | length >= 1
+        fail_msg: >-
+          Expected 3 integration test alerts (critical, warning, information) but found
+          {{ _test_alerts.alerts | length }}.
+          Verify that the SCOM alert rules for EventIDs 9997/9998/9999 are configured,
+          enabled, and that the SCOM polling interval has elapsed
+          (max wait: {{ scom_alert_wait_retries | int * scom_alert_wait_delay | int }}s).
+
+    - name: Store individual test alert objects for later tasks
+      ansible.builtin.set_fact:
+        _critical_alert: "{{ _test_alerts.alerts | selectattr('severity', 'equalto', 'critical') | first }}"
+        _warning_alert: "{{ _test_alerts.alerts | selectattr('severity', 'equalto', 'warning') | first }}"
+        _info_alert: "{{ _test_alerts.alerts | selectattr('severity', 'equalto', 'information') | first }}"
+
+    # =========================================================
+    # PHASE 3: alert_info - filter and structure validation
+    # =========================================================
+    - name: Alert_info - module never reports changed (info module contract)
+      ansible.builtin.assert:
+        that:
+          - _test_alerts.changed == false
+        fail_msg: "alert_info must always return changed=false"
+
+    - name: Alert_info - filter by severity=critical returns only critical alerts
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _filter_critical
+
+    - name: Assert severity=critical filter returns only critical-severity alerts
+      ansible.builtin.assert:
+        that:
+          - _filter_critical.changed == false
+          - _filter_critical.alerts | length >= 1
+          - _filter_critical.alerts | selectattr('severity', 'ne', 'critical') | list | length == 0
+        fail_msg: "alert_info severity=critical filter returned non-critical alerts"
+
+    - name: Alert_info - filter by severity=warning returns only warning alerts
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: warning
+      register: _filter_warning
+
+    - name: Assert severity=warning filter returns only warning-severity alerts
+      ansible.builtin.assert:
+        that:
+          - _filter_warning.changed == false
+          - _filter_warning.alerts | length >= 1
+          - _filter_warning.alerts | selectattr('severity', 'ne', 'warning') | list | length == 0
+        fail_msg: "alert_info severity=warning filter returned non-warning alerts"
+
+    - name: Alert_info - filter by resolution_state=new returns only open alerts
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }})"
+        resolution_state: new
+      register: _filter_new
+
+    - name: Assert resolution_state=new filter returns only alerts with state 0
+      ansible.builtin.assert:
+        that:
+          - _filter_new.changed == false
+          - _filter_new.alerts | length >= 3
+          - _filter_new.alerts | selectattr('resolution_state', 'ne', 0) | list | length == 0
+        fail_msg: "alert_info resolution_state=new filter returned alerts that are not in the New state"
+
+    - name: Alert_info - resolution_state=any returns all test alerts regardless of state
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }})"
+        resolution_state: any
+      register: _filter_any
+
+    - name: Assert resolution_state=any returns at least the 3 open test alerts
+      ansible.builtin.assert:
+        that:
+          - _filter_any.changed == false
+          - _filter_any.alerts | length >= 3
+        fail_msg: "alert_info resolution_state=any should return all test alerts"
+
+    - name: Alert_info - verify critical alert result has all expected keys
+      ansible.builtin.assert:
+        that:
+          - _critical_alert.id is defined and _critical_alert.id | length > 0
+          - _critical_alert.name is defined
+          - _critical_alert.description is defined
+          - _critical_alert.severity == 'critical'
+          - _critical_alert.resolution_state == 0
+          - _critical_alert.resolution_state_name == 'new'
+          - _critical_alert.monitoring_object_name is defined
+          - _critical_alert.time_raised is defined and _critical_alert.time_raised | length > 0
+          - _critical_alert.owner is defined
+          - _critical_alert.ticket_id is defined
+        fail_msg: "Critical alert result is missing one or more expected keys or has unexpected values"
+
+    # =========================================================
+    # PHASE 4: alert - modify the critical alert
+    # Each modification is verified both through the alert module
+    # return value and through a follow-up alert_info query to
+    # confirm the change is actually persisted in SCOM.
+    # =========================================================
+
+    # ---------------------------------------------------------
+    # 4a: owner - check mode
+    # ---------------------------------------------------------
+    - name: Alert - set owner in check mode (should report changed but not apply)
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        owner: "{{ scom_test_alert_owner }}"
+      check_mode: true
+      register: _set_owner_check
+
+    - name: Assert check mode reports changed and alert module shows owner unmodified
+      ansible.builtin.assert:
+        that:
+          - _set_owner_check.changed == true
+          - _set_owner_check.alert.owner != scom_test_alert_owner
+        fail_msg: >-
+          alert check mode should report changed=true but must not modify the alert owner.
+          Got owner='{{ _set_owner_check.alert.owner }}' (expected it to differ from '{{ scom_test_alert_owner }}').
+
+    - name: Alert_info - confirm check mode did not persist an owner change in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_check_owner
+
+    - name: Assert alert_info shows owner is still unset after check mode
+      ansible.builtin.assert:
+        that:
+          - (_info_check_owner.alerts | first).owner != scom_test_alert_owner
+        fail_msg: >-
+          alert_info shows owner='{{ (_info_check_owner.alerts | first).owner }}'
+          after check mode - the owner must not have been written to SCOM.
+
+    # ---------------------------------------------------------
+    # 4b: owner - real write
+    # ---------------------------------------------------------
+    - name: Alert - set owner on the critical alert
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        owner: "{{ scom_test_alert_owner }}"
+      register: _set_owner
+
+    - name: Assert alert module reports changed and returns the updated owner
+      ansible.builtin.assert:
+        that:
+          - _set_owner.changed == true
+          - _set_owner.alert.owner == scom_test_alert_owner
+        fail_msg: >-
+          alert did not set the owner correctly.
+          Expected '{{ scom_test_alert_owner }}' but got '{{ _set_owner.alert.owner }}'.
+
+    - name: Alert_info - confirm owner change is persisted in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_after_owner
+
+    - name: Assert alert_info confirms the owner is now visible in SCOM
+      ansible.builtin.assert:
+        that:
+          - (_info_after_owner.alerts | first).owner == scom_test_alert_owner
+        fail_msg: >-
+          alert_info shows owner='{{ (_info_after_owner.alerts | first).owner }}'
+          but expected '{{ scom_test_alert_owner }}' - the change was not persisted in SCOM.
+
+    # ---------------------------------------------------------
+    # 4c: owner - idempotency
+    # ---------------------------------------------------------
+    - name: Alert - set the same owner again to verify idempotency
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        owner: "{{ scom_test_alert_owner }}"
+      register: _set_owner_idem
+
+    - name: Assert no change when the owner already matches
+      ansible.builtin.assert:
+        that:
+          - _set_owner_idem.changed == false
+        fail_msg: "alert should report changed=false when the owner is already set to the desired value"
+
+    # ---------------------------------------------------------
+    # 4d: ticket_id - real write
+    # ---------------------------------------------------------
+    - name: Alert - set ticket_id on the critical alert
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        ticket_id: "{{ scom_test_ticket_id }}"
+      register: _set_ticket
+
+    - name: Assert alert module reports changed and returns the updated ticket_id
+      ansible.builtin.assert:
+        that:
+          - _set_ticket.changed == true
+          - _set_ticket.alert.ticket_id == scom_test_ticket_id
+        fail_msg: "alert did not set the ticket_id correctly"
+
+    - name: Alert_info - confirm ticket_id change is persisted in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_after_ticket
+
+    - name: Assert alert_info confirms the ticket_id is now visible in SCOM
+      ansible.builtin.assert:
+        that:
+          - (_info_after_ticket.alerts | first).ticket_id == scom_test_ticket_id
+        fail_msg: >-
+          alert_info shows ticket_id='{{ (_info_after_ticket.alerts | first).ticket_id }}'
+          but expected '{{ scom_test_ticket_id }}' - the change was not persisted in SCOM.
+
+    # ---------------------------------------------------------
+    # 4e: custom_field1 - real write
+    # ---------------------------------------------------------
+    - name: Alert - set custom_field1 on the critical alert
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        custom_field1: "ansible-integration-test"
+      register: _set_custom
+
+    - name: Assert alert module reports changed
+      ansible.builtin.assert:
+        that:
+          - _set_custom.changed == true
+        fail_msg: "alert did not report changed after setting custom_field1"
+
+    - name: Alert_info - confirm custom_field1 change is persisted in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_after_custom
+
+    - name: Assert alert_info confirms custom_field1 is now visible in SCOM
+      ansible.builtin.assert:
+        that:
+          - (_info_after_custom.alerts | first).custom_field1 == "ansible-integration-test"
+        fail_msg: >-
+          alert_info shows custom_field1='{{ (_info_after_custom.alerts | first).custom_field1 }}'
+          but expected 'ansible-integration-test' - the change was not persisted in SCOM.
+
+    # ---------------------------------------------------------
+    # 4f: ticket_id + custom_field1 - idempotency
+    # ---------------------------------------------------------
+    - name: Alert - set same ticket_id and custom_field1 again to verify idempotency
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        ticket_id: "{{ scom_test_ticket_id }}"
+        custom_field1: "ansible-integration-test"
+      register: _set_fields_idem
+
+    - name: Assert no change when ticket_id and custom_field1 already match
+      ansible.builtin.assert:
+        that:
+          - _set_fields_idem.changed == false
+        fail_msg: "alert should be idempotent when ticket_id and custom_field1 already match"
+
+    # ---------------------------------------------------------
+    # 4g: resolution_state - check mode close
+    # ---------------------------------------------------------
+    - name: Alert - close critical alert in check mode (should report changed but stay open)
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        resolution_state: closed
+      check_mode: true
+      register: _close_check
+
+    - name: Assert check mode reports changed and alert module shows alert still open
+      ansible.builtin.assert:
+        that:
+          - _close_check.changed == true
+          - _close_check.alert.resolution_state != 255
+        fail_msg: >-
+          alert close check mode should report changed=true but the alert must remain open.
+          Got resolution_state={{ _close_check.alert.resolution_state }}.
+
+    - name: Alert_info - confirm check mode did not close the alert in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_check_close
+
+    - name: Assert alert_info shows the critical alert is still open after check mode close
+      ansible.builtin.assert:
+        that:
+          - _info_check_close.alerts | length >= 1
+          - (_info_check_close.alerts | first).resolution_state == 0
+        fail_msg: >-
+          alert_info shows the critical alert is no longer open after check mode close -
+          check mode must not have written the resolution state to SCOM.
+
+    # =========================================================
+    # PHASE 5: Close all 3 integration test alerts
+    # Each close is verified through the alert module return value
+    # and through a follow-up alert_info query confirming the
+    # alert is no longer in the open (ResolutionState = 0) set.
+    # =========================================================
+
+    # ---------------------------------------------------------
+    # 5a: Close the critical alert
+    # ---------------------------------------------------------
+    - name: Alert - close the critical integration test alert
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        resolution_state: closed
+      register: _close_critical
+
+    - name: Assert alert module reports changed and returns resolution_state 255
+      ansible.builtin.assert:
+        that:
+          - _close_critical.changed == true
+          - _close_critical.alert.resolution_state == 255
+          - _close_critical.alert.resolution_state_name == 'closed'
+        fail_msg: >-
+          Failed to close the critical test alert.
+          Got resolution_state={{ _close_critical.alert.resolution_state }}.
+
+    - name: Alert_info - confirm critical alert is no longer in the open alert set
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: critical
+      register: _info_after_close_critical
+
+    - name: Assert alert_info returns no open critical test alerts
+      ansible.builtin.assert:
+        that:
+          - _info_after_close_critical.alerts | length == 0
+        fail_msg: >-
+          alert_info still shows {{ _info_after_close_critical.alerts | length }} open critical
+          test alert(s) after close - the resolution state was not persisted in SCOM.
+
+    # ---------------------------------------------------------
+    # 5b: Close critical - idempotency
+    # ---------------------------------------------------------
+    - name: Alert - close the same critical alert again to verify idempotency
+      microsoft.scom.alert:
+        alert_id: "{{ _critical_alert.id }}"
+        resolution_state: closed
+      register: _close_critical_idem
+
+    - name: Assert no change when critical alert is already closed
+      ansible.builtin.assert:
+        that:
+          - _close_critical_idem.changed == false
+        fail_msg: "alert should report changed=false when the alert is already in the closed state"
+
+    # ---------------------------------------------------------
+    # 5c: Close the warning alert
+    # ---------------------------------------------------------
+    - name: Alert - close the warning integration test alert
+      microsoft.scom.alert:
+        alert_id: "{{ _warning_alert.id }}"
+        resolution_state: closed
+      register: _close_warning
+
+    - name: Assert alert module reports changed and returns resolution_state 255
+      ansible.builtin.assert:
+        that:
+          - _close_warning.changed == true
+          - _close_warning.alert.resolution_state == 255
+        fail_msg: "Failed to close the warning test alert"
+
+    - name: Alert_info - confirm warning alert is no longer in the open alert set
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: warning
+      register: _info_after_close_warning
+
+    - name: Assert alert_info returns no open warning test alerts
+      ansible.builtin.assert:
+        that:
+          - _info_after_close_warning.alerts | length == 0
+        fail_msg: >-
+          alert_info still shows {{ _info_after_close_warning.alerts | length }} open warning
+          test alert(s) after close - the resolution state was not persisted in SCOM.
+
+    # ---------------------------------------------------------
+    # 5d: Close the info alert
+    # ---------------------------------------------------------
+    - name: Alert - close the info integration test alert
+      microsoft.scom.alert:
+        alert_id: "{{ _info_alert.id }}"
+        resolution_state: closed
+      register: _close_info
+
+    - name: Assert alert module reports changed and returns resolution_state 255
+      ansible.builtin.assert:
+        that:
+          - _close_info.changed == true
+          - _close_info.alert.resolution_state == 255
+        fail_msg: "Failed to close the info test alert"
+
+    - name: Alert_info - confirm info alert is no longer in the open alert set
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+        severity: information
+      register: _info_after_close_info
+
+    - name: Assert alert_info returns no open information test alerts
+      ansible.builtin.assert:
+        that:
+          - _info_after_close_info.alerts | length == 0
+        fail_msg: >-
+          alert_info still shows {{ _info_after_close_info.alerts | length }} open information
+          test alert(s) after close - the resolution state was not persisted in SCOM.
+
+    # =========================================================
+    # PHASE 6: Verify clean state - no open test alerts remain
+    # =========================================================
+    - name: Verify no open integration test alerts remain in SCOM
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+      register: _verify_clean
+
+    - name: Assert the SCOM environment is clean of open test alerts
+      ansible.builtin.assert:
+        that:
+          - _verify_clean.alerts | length == 0
+        fail_msg: >-
+          {{ _verify_clean.alerts | length }} integration test alert(s) are still open after cleanup.
+          Open alert IDs: {{ _verify_clean.alerts | map(attribute='id') | list | join(', ') }}
+
+  always:
+    # =========================================================
+    # ALWAYS: Safety net - close any test alerts that remain open
+    # regardless of test failures so the environment is left clean.
+    # =========================================================
+    - name: Safety cleanup - query for any remaining open test alerts
+      microsoft.scom.alert_info:
+        criteria: "({{ scom_test_alert_criteria }}) AND (ResolutionState = '0')"
+      register: _cleanup_alerts
+      failed_when: false
+
+    - name: Safety cleanup - close any remaining open test alerts
+      microsoft.scom.alert:
+        alert_id: "{{ item.id }}"
+        resolution_state: closed
+      loop: "{{ _cleanup_alerts.alerts | default([]) }}"
+      failed_when: false

@@ -1,4 +1,4 @@
-name: Collection Docs
+name: Collection Docs (Publish)
 concurrency:
   group: docs-push-${{ github.sha }}
   cancel-in-progress: true

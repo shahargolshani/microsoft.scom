@@ -1,10 +1,10 @@
 # Microsoft SCOM Collection for Ansible
+
 [![CI](https://github.com/ansible-collections/microsoft.scom/workflows/CI/badge.svg?event=push)](https://github.com/ansible-collections/microsoft.scom/actions) [![Codecov](https://img.shields.io/codecov/c/github/ansible-collections/microsoft.scom)](https://codecov.io/gh/ansible-collections/microsoft.scom)
 
 This collection provides Ansible modules and plugins for automating Microsoft System Center Operations Manager (SCOM) infrastructure. It enables users to manage SCOM environments, configure monitoring, and automate operational tasks through Ansible playbooks.
 
 ## Our mission
-
 
 At the Microsoft SCOM collection, our mission is to produce and maintain simple, flexible,
 and powerful open-source software tailored to Microsoft System Center Operations Manager (SCOM) automation.
@@ -21,18 +21,16 @@ If you encounter abusive behavior, please refer to the [policy violations](https
 
 ## Communication
 
-
-* Join the Ansible forum:
-  * [Get Help](https://forum.ansible.com/c/help/6): get help or help others. Please add the `microsoft` and `scom` tags when starting new discussions.
-  * [Posts tagged with 'microsoft'](https://forum.ansible.com/tag/microsoft): subscribe to participate in Microsoft-related conversations.
-  * [Posts tagged with 'scom'](https://forum.ansible.com/tag/scom): subscribe to participate in SCOM-related conversations.
-  * [Social Spaces](https://forum.ansible.com/c/chat/4): gather and interact with fellow enthusiasts.
-  * [News & Announcements](https://forum.ansible.com/c/news/5): track project-wide announcements including social events. The [Bullhorn newsletter](https://docs.ansible.com/ansible/devel/community/communication.html#the-bullhorn), which is used to announce releases and important changes, can also be found here.
+- Join the Ansible forum:
+  - [Get Help](https://forum.ansible.com/c/help/6): get help or help others. Please add the `microsoft` and `scom` tags when starting new discussions.
+  - [Posts tagged with 'microsoft'](https://forum.ansible.com/tag/microsoft): subscribe to participate in Microsoft-related conversations.
+  - [Posts tagged with 'scom'](https://forum.ansible.com/tag/scom): subscribe to participate in SCOM-related conversations.
+  - [Social Spaces](https://forum.ansible.com/c/chat/4): gather and interact with fellow enthusiasts.
+  - [News & Announcements](https://forum.ansible.com/c/news/5): track project-wide announcements including social events. The [Bullhorn newsletter](https://docs.ansible.com/ansible/devel/community/communication.html#the-bullhorn), which is used to announce releases and important changes, can also be found here.
 
 For more information about communication, see the [Ansible communication guide](https://docs.ansible.com/ansible/devel/community/communication.html).
 
 ## Contributing to this collection
-
 
 The content of this collection is made by people like you, a community of individuals collaborating on making the world better through developing automation software.
 
@@ -44,9 +42,9 @@ Want to submit code changes? Take a look at the [Quick-start development guide](
 
 We also use the following guidelines:
 
-* [Collection review checklist](https://docs.ansible.com/ansible/devel/community/collection_contributors/collection_reviewing.html)
-* [Ansible development guide](https://docs.ansible.com/ansible/devel/dev_guide/index.html)
-* [Ansible collection development guide](https://docs.ansible.com/ansible/devel/dev_guide/developing_collections.html#contributing-to-collections)
+- [Collection review checklist](https://docs.ansible.com/ansible/devel/community/collection_contributors/collection_reviewing.html)
+- [Ansible development guide](https://docs.ansible.com/ansible/devel/dev_guide/index.html)
+- [Ansible collection development guide](https://docs.ansible.com/ansible/devel/dev_guide/developing_collections.html#contributing-to-collections)
 
 ## Collection maintenance
 
@@ -56,27 +54,44 @@ To learn how to maintain/become a maintainer of this collection, refer to the [M
 
 It is necessary for maintainers of this collection to be subscribed to:
 
-* The collection itself (the `Watch` button -> `All Activity` in the upper right corner of the repository's homepage).
-* The [news-for-maintainers repository](https://github.com/ansible-collections/news-for-maintainers).
+- The collection itself (the `Watch` button -> `All Activity` in the upper right corner of the repository's homepage).
+- The [news-for-maintainers repository](https://github.com/ansible-collections/news-for-maintainers).
 
 They also should be subscribed to Ansible's [The Bullhorn newsletter](https://docs.ansible.com/ansible/devel/community/communication.html#the-bullhorn).
 
 ## Governance
 
-
 The process of decision making in this collection is based on discussing and finding consensus among participants.
 
 Every voice is important. If you have something on your mind, create an issue or dedicated discussion and let's discuss it!
 
+## Ansible version compatibility
+
+<!--start requires_ansible-->
+## Ansible version compatibility
+
+This collection has been tested against the following Ansible versions: **>=2.16.0**.
+
+Plugins and modules within a collection may be tested with only specific Ansible versions.
+A collection may contain metadata that identifies these versions.
+PEP440 is the schema used to describe the versions of Ansible.
+<!--end requires_ansible-->
+
+## Included content
+
+<!--start collection content-->
+<!--end collection content-->
 
 ### Installation
 
 Before using this collection, you need to install it with the Ansible Galaxy command-line tool:
+
 ```bash
 ansible-galaxy collection install microsoft.scom
 ```
 
 You can also include it in a `requirements.yml` file and install it with `ansible-galaxy collection install -r requirements.yml`, using the format:
+
 ```yaml
 ---
 collections:
@@ -84,6 +99,7 @@ collections:
 ```
 
 Note that if you install the collection from Ansible Galaxy, it will not be upgraded automatically when you upgrade the `ansible` package. To upgrade the collection to the latest available version, run the following command:
+
 ```bash
 ansible-galaxy collection install microsoft.scom --upgrade
 ```
@@ -96,11 +112,11 @@ ansible-galaxy collection install microsoft.scom:==0.1.0
 
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
 
-### Using the Collection SCOM Plugin On AAP/EDA 
+### Using the Collection SCOM Plugin On AAP/EDA
 
 In order to use the collection plugin `scom_plugin` on your AAP/EDA you have to have it on the EDA Decision Environment
 
-To build an EDA Decision Environment use `microsoft.scom/Containerfile` 
+To build an EDA Decision Environment use `microsoft.scom/Containerfile`
 
 ```bash
 podman build -t scom-eda-de:1.0.0 .
@@ -110,9 +126,8 @@ Push the image to your container registry
 
 Use the image to create decision environment in EDA
 
-In EDA Rulebook Activations create rulebook activation with the created decision environment 
+In EDA Rulebook Activations create rulebook activation with the created decision environment
 And with Rulebook `microsoft.scom/extensions/eda/rulebooks/scom-rulebook.yml`
-
 
 ## Release notes
 
@@ -125,7 +140,6 @@ If a support case cannot be opened with Red Hat and the collection has been obta
 
 ## More information
 
-
 - [Ansible user guide](https://docs.ansible.com/ansible/devel/user_guide/index.html)
 - [Ansible developer guide](https://docs.ansible.com/ansible/devel/dev_guide/index.html)
 - [Ansible collections requirements](https://docs.ansible.com/ansible/devel/community/collection_contributors/collection_requirements.html)
@@ -134,7 +148,6 @@ If a support case cannot be opened with Red Hat and the collection has been obta
 - [Important announcements for maintainers](https://github.com/ansible-collections/news-for-maintainers)
 
 ## Licensing
-
 
 GNU General Public License v3.0 or later.
 
