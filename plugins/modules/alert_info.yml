@@ -10,6 +10,9 @@ DOCUMENTATION:
     - Supports filtering by raw SCOM criteria string, severity, resolution state,
       and monitoring object display name.
     - This is an info module — it never makes changes and always returns C(changed=false).
+  author:
+    - Shahar Golshani (@shahargolshani)
+    - Ansible Ecosystem Engineering team (@eco-ansible-content)
   extends_documentation_fragment:
     - microsoft.scom.uses_scom_ps_module
   options:

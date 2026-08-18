@@ -11,6 +11,9 @@ DOCUMENTATION:
       and changing the resolution state (new/closed).
     - Idempotent - no change is made when the alert already reflects the desired state.
     - Supports check mode.
+  author:
+    - Shahar Golshani (@shahargolshani)
+    - Ansible Ecosystem Engineering team (@eco-ansible-content)
   extends_documentation_fragment:
     - microsoft.scom.uses_scom_ps_module
   options:

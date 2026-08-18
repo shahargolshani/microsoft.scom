@@ -10,6 +10,15 @@ on:
       - main
       - stable-*
 
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: >-
+          Integration test targets to run (space-separated, e.g. "win_scom_alert win_scom_alert_info").
+          Leave empty to run ALL targets.
+        required: false
+        default: ""
+
 concurrency:
   group: >-
     ${{ github.workflow }}-${{
@@ -39,7 +48,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger → use provided targets or fall back to ALL
+            if [[ -n "${{ github.event.inputs.targets }}" ]]; then
+              TARGETS="${{ github.event.inputs.targets }}"
+            else
+              TARGETS="ALL"
+            fi
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
             # Push to main/stable-* → always run ALL tests as safety net
             TARGETS="ALL"
           else
@@ -51,7 +67,7 @@ jobs:
             git fetch origin "${HEAD_SHA}" 2>/dev/null || true
             CHANGED=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
             echo "Changed files:"
-            echo "${CHANGED:-  (none)"
+            echo "${CHANGED:-  (none)}"
             TARGETS=$(echo "${CHANGED}" | bash scripts/get_integration_targets.sh)
           fi
 
@@ -114,7 +130,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install python
         run: |

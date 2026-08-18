@@ -20,10 +20,6 @@ notes:
       on the Management Group. Administrative operations (e.g. importing management
       packs) require the SCOM Administrators role.
 
-author:
-    - Shahar Golshani (@shahargolshani)
-    - Ansible Ecosystem Engineering team (@eco-ansible-content)
-
 requirements:
     - Must execute on the SCOM Management Server via WinRM
     - SCOM Operations Console installed on the target host (provides the OperationsManager
