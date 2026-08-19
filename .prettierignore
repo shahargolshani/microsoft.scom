@@ -1,0 +1,4 @@
+# Managed by collection_prep update-docs hook - prettier conflicts with its output format
+README.md
+docs/
+changelogs/CHANGELOG.rst
