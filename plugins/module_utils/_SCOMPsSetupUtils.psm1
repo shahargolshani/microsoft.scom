@@ -191,6 +191,63 @@ Function Format-DateTimeAsStringSafely {
 }
 
 
+Function Test-SCOMManagementPackIdentifier {
+    <#
+    .SYNOPSIS
+    Returns $true if a string is a valid SCOM management pack element identifier.
+
+    .DESCRIPTION
+    Several SCOM objects (notification channel endpoints, notification subscriptions) are
+    stored as management pack elements whose internal ID must satisfy the
+    ManagementPackUniqueIdentifier XSD pattern: it must start with a letter or underscore
+    and contain only letters, digits, underscores, and dots. Spaces and other punctuation
+    are not permitted. Passing a non-conforming value produces a cryptic
+    "endpoint could not be inserted" / "not valid for insert" error from the SDK.
+
+    .PARAMETER value
+    The candidate identifier string.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()]$value
+    )
+
+    if ([string]::IsNullOrEmpty($value)) {
+        return $false
+    }
+
+    return ([string]$value -match '^[A-Za-z_][A-Za-z0-9_.]*$')
+}
+
+
+Function ConvertTo-SCOMManagementPackIdentifier {
+    <#
+    .SYNOPSIS
+    Converts an arbitrary string into a valid SCOM management pack element identifier.
+
+    .DESCRIPTION
+    Produces a deterministic identifier suitable for use as a default internal name when the
+    caller only supplied a friendly display name. Removes every character that is not a
+    letter, digit, underscore, or dot, then guarantees the result begins with a letter or
+    underscore (prefixing "Scom_" when required). See Test-SCOMManagementPackIdentifier for
+    the pattern rationale.
+
+    .PARAMETER value
+    The source string (typically a display name) to convert.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][string]$value
+    )
+
+    $sanitized = ($value -replace '[^A-Za-z0-9_.]', '')
+
+    if ($sanitized -eq '' -or $sanitized -notmatch '^[A-Za-z_]') {
+        $sanitized = "Scom_$sanitized"
+    }
+
+    return $sanitized
+}
+
+
 Function Format-ModuleParamAsCmdletArgument {
     <#
     .SYNOPSIS

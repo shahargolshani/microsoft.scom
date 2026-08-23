@@ -1,0 +1,6 @@
+---
+# Identity of the throwaway unsealed management pack used by the tests.
+scom_test_mp_id: "Ansible.Integration.Test.MP"
+scom_test_mp_display_name: "Ansible Integration Test MP"
+# SCOM requires the MP file name (without extension) to match the MP identity.
+scom_test_mp_remote_path: 'C:\Windows\Temp\Ansible.Integration.Test.MP.xml'

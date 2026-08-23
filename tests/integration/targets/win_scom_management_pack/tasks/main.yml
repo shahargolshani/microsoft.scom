@@ -1,0 +1,179 @@
+---
+# Integration tests for microsoft.scom.management_pack and management_pack_info.
+#
+# A minimal, unsealed test management pack with a unique identity is written to the
+# SCOM host, imported, verified, and removed. The management pack and the temporary
+# file are always cleaned up so the SCOM environment is left untouched.
+
+- name: Run the management_pack and management_pack_info integration test suite
+  block:
+    # =========================================================
+    # PRE-CLEANUP: remove any leftover test MP from a prior run
+    # =========================================================
+    - name: Pre-clean any leftover test management pack
+      microsoft.scom.management_pack:
+        name: "{{ scom_test_mp_id }}"
+        state: absent
+
+    # =========================================================
+    # SETUP: write a minimal valid unsealed management pack to the host
+    # =========================================================
+    - name: Write the test management pack XML to the SCOM host
+      ansible.windows.win_copy:
+        dest: "{{ scom_test_mp_remote_path }}"
+        content: |
+          <ManagementPack ContentReadable="true" SchemaVersion="2.0"
+            OriginalSchemaVersion="1.1"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+            <Manifest>
+              <Identity>
+                <ID>{{ scom_test_mp_id }}</ID>
+                <Version>1.0.0.0</Version>
+              </Identity>
+              <Name>{{ scom_test_mp_display_name }}</Name>
+              <References />
+            </Manifest>
+            <LanguagePacks>
+              <LanguagePack ID="ENU" IsDefault="true">
+                <DisplayStrings>
+                  <DisplayString ElementID="{{ scom_test_mp_id }}">
+                    <Name>{{ scom_test_mp_display_name }}</Name>
+                    <Description>Temporary MP created by microsoft.scom integration tests</Description>
+                  </DisplayString>
+                </DisplayStrings>
+              </LanguagePack>
+            </LanguagePacks>
+          </ManagementPack>
+
+    # =========================================================
+    # PHASE 1: import - check mode
+    # =========================================================
+    - name: Import the test management pack in check mode
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      check_mode: true
+      register: _import_check
+
+    - name: Assert check mode reports changed
+      ansible.builtin.assert:
+        that:
+          - _import_check.changed == true
+        fail_msg: "management_pack check mode should report changed=true for a new pack"
+
+    - name: Confirm check mode did not import the pack
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info_after_check
+
+    - name: Assert the pack is not installed after check mode
+      ansible.builtin.assert:
+        that:
+          - _info_after_check.management_packs | length == 0
+        fail_msg: "management_pack check mode must not import the pack"
+
+    # =========================================================
+    # PHASE 2: import - real
+    # =========================================================
+    - name: Import the test management pack
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      register: _import
+
+    - name: Assert the pack was imported
+      ansible.builtin.assert:
+        that:
+          - _import.changed == true
+          - _import.management_pack.name == scom_test_mp_id
+          - _import.management_pack.version == '1.0.0.0'
+          - _import.management_pack.sealed == false
+        fail_msg: "management_pack did not import the pack correctly"
+
+    # =========================================================
+    # PHASE 3: idempotency
+    # =========================================================
+    - name: Import the same pack again (idempotency)
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      register: _import_idem
+
+    - name: Assert no change on repeat import
+      ansible.builtin.assert:
+        that:
+          - _import_idem.changed == false
+        fail_msg: "management_pack must be idempotent when the same version is already installed"
+
+    # =========================================================
+    # PHASE 4: info
+    # =========================================================
+    - name: Get the test pack via info
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info
+
+    - name: Assert info returns the pack with expected fields
+      ansible.builtin.assert:
+        that:
+          - _info.changed == false
+          - _info.management_packs | length == 1
+          - (_info.management_packs | first).name == scom_test_mp_id
+          - (_info.management_packs | first).version == '1.0.0.0'
+          - (_info.management_packs | first).id | length > 0
+        fail_msg: "management_pack_info did not return the expected pack"
+
+    # =========================================================
+    # PHASE 5: remove
+    # =========================================================
+    - name: Remove the test management pack
+      microsoft.scom.management_pack:
+        name: "{{ scom_test_mp_id }}"
+        state: absent
+      register: _remove
+
+    - name: Assert the pack was removed
+      ansible.builtin.assert:
+        that:
+          - _remove.changed == true
+        fail_msg: "management_pack did not remove the pack"
+
+    - name: Remove the pack again (idempotency)
+      microsoft.scom.management_pack:
+        name: "{{ scom_test_mp_id }}"
+        state: absent
+      register: _remove_idem
+
+    - name: Assert no change removing an absent pack
+      ansible.builtin.assert:
+        that:
+          - _remove_idem.changed == false
+        fail_msg: "management_pack absent must be idempotent"
+
+    - name: Confirm the pack is gone
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info_final
+
+    - name: Assert info shows the pack no longer installed
+      ansible.builtin.assert:
+        that:
+          - _info_final.management_packs | length == 0
+        fail_msg: "management_pack_info still shows the test pack after removal"
+
+  always:
+    # =========================================================
+    # ALWAYS: remove the test pack and temp file regardless of failures
+    # =========================================================
+    - name: Safety cleanup - remove the test management pack
+      microsoft.scom.management_pack:
+        name: "{{ scom_test_mp_id }}"
+        state: absent
+      failed_when: false
+
+    - name: Safety cleanup - remove the temp management pack file
+      ansible.windows.win_file:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: absent
+      failed_when: false
