@@ -1,0 +1,91 @@
+---
+# Copyright: (c) 2026, Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+DOCUMENTATION:
+  module: management_pack
+  short_description: Import or remove SCOM management packs.
+  description:
+    - Imports a SCOM management pack from a file, or removes an installed management pack.
+    - Enables treating SCOM monitoring configuration as code.
+    - Supports sealed (C(.mp), C(.mpb)) and unsealed (C(.xml)) management pack files.
+    - Idempotent - when importing, no change is made if a management pack of the same
+      identity and an equal or newer version is already installed.
+    - Supports check mode.
+  author:
+    - Shahar Golshani (@shahargolshani)
+    - Ansible Ecosystem Engineering team (@eco-ansible-content)
+  extends_documentation_fragment:
+    - microsoft.scom.uses_scom_ps_module
+  options:
+    path:
+      description:
+        - Path on the SCOM management server to the management pack file to import.
+        - Supports C(.xml) (unsealed), C(.mp) (sealed), and C(.mpb) (sealed bundle) files.
+        - Required when O(state=present).
+      type: str
+      required: false
+    name:
+      description:
+        - The identity name of the management pack (for example
+          C(Microsoft.SQLServer.Windows.Monitoring)).
+        - Required when O(state=absent).
+        - Use M(microsoft.scom.management_pack_info) to discover management pack names.
+      type: str
+      required: false
+    state:
+      description:
+        - C(present) imports the management pack from O(path).
+        - C(absent) removes the installed management pack identified by O(name).
+      type: str
+      required: false
+      default: present
+      choices:
+        - present
+        - absent
+
+EXAMPLES: |
+  - name: Import an unsealed management pack
+    microsoft.scom.management_pack:
+      path: 'C:\\MPs\\Contoso.Custom.Monitoring.xml'
+      state: present
+
+  - name: Import a sealed management pack bundle
+    microsoft.scom.management_pack:
+      path: 'C:\\MPs\\Microsoft.SQLServer.Windows.mpb'
+      state: present
+
+  - name: Remove a management pack by identity name
+    microsoft.scom.management_pack:
+      name: "Contoso.Custom.Monitoring"
+      state: absent
+
+RETURN:
+  management_pack:
+    description:
+      - The imported management pack (the first pack when importing a bundle).
+      - Not returned for C(state=absent).
+    returned: when C(state=present) and the pack identity can be resolved
+    type: dict
+    contains:
+      id:
+        description: GUID of the management pack.
+        type: str
+      name:
+        description: Identity name of the management pack.
+        type: str
+      display_name:
+        description: Display name of the management pack.
+        type: str
+      version:
+        description: Version of the installed management pack.
+        type: str
+      sealed:
+        description: Whether the management pack is sealed.
+        type: bool
+      time_created:
+        description: Timestamp the management pack was created (yyyy-MM-dd HH:mm:ss z).
+        type: str
+      last_modified:
+        description: Timestamp of the last modification (yyyy-MM-dd HH:mm:ss z).
+        type: str
