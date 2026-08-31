@@ -7,22 +7,6 @@
 #AnsibleRequires -PowerShell ..module_utils._SCOMPsSetupUtils
 
 
-Function Format-ManagementPackResult {
-    param (
-        [Parameter(Mandatory = $true)][object]$mp
-    )
-
-    return @{
-        id = $mp.Id.ToString()
-        name = $mp.Name
-        display_name = if ($null -ne $mp.DisplayName) { $mp.DisplayName } else { "" }
-        version = if ($null -ne $mp.Version) { $mp.Version.ToString() } else { "" }
-        sealed = [bool]$mp.Sealed
-        time_created = Format-DateTimeAsStringSafely -dateTimeObject $mp.TimeCreated
-        last_modified = Format-DateTimeAsStringSafely -dateTimeObject $mp.LastModified
-    }
-}
-
 
 Function Get-ManagementPackFromFile {
     <#

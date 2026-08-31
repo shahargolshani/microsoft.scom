@@ -191,6 +191,182 @@ Function Format-DateTimeAsStringSafely {
 }
 
 
+Function Format-ManagementPackResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM ManagementPack SDK object into a result hashtable.
+
+    .PARAMETER mp
+    The ManagementPack object returned by Get-SCOMManagementPack or Import-SCOMManagementPack.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$mp
+    )
+
+    return @{
+        id = $mp.Id.ToString()
+        name = $mp.Name
+        display_name = if ($null -ne $mp.DisplayName) { $mp.DisplayName } else { "" }
+        version = if ($null -ne $mp.Version) { $mp.Version.ToString() } else { "" }
+        sealed = [bool]$mp.Sealed
+        time_created = Format-DateTimeAsStringSafely -dateTimeObject $mp.TimeCreated
+        last_modified = Format-DateTimeAsStringSafely -dateTimeObject $mp.LastModified
+    }
+}
+
+
+Function Format-NotificationSubscriptionResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM NotificationSubscription SDK object into a result hashtable.
+
+    .PARAMETER subscription
+    The NotificationSubscription object returned by Get-SCOMNotificationSubscription.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$subscription
+    )
+
+    $channels = [System.Collections.Generic.List[string]]::new()
+    if ($null -ne $subscription.Actions) {
+        foreach ($action in $subscription.Actions) {
+            if ($null -ne $action.DisplayName) {
+                $channels.Add([string]$action.DisplayName)
+            }
+        }
+    }
+
+    $recipient_names = {
+        param($recipients)
+        $names = [System.Collections.Generic.List[string]]::new()
+        if ($null -ne $recipients) {
+            foreach ($recipient in $recipients) {
+                if ($null -ne $recipient.Name) {
+                    $names.Add([string]$recipient.Name)
+                }
+            }
+        }
+        return , $names.ToArray()
+    }
+
+    $criteria = ""
+    if ($null -ne $subscription.Configuration -and $null -ne $subscription.Configuration.Criteria) {
+        $criteria = [string]$subscription.Configuration.Criteria
+    }
+
+    return @{
+        name = [string]$subscription.Name
+        display_name = [string]$subscription.DisplayName
+        description = if ($null -ne $subscription.Description) { [string]$subscription.Description } else { "" }
+        enabled = [bool]$subscription.Enabled
+        id = if ($null -ne $subscription.Id) { $subscription.Id.ToString() } else { "" }
+        channels = $channels.ToArray()
+        subscribers = & $recipient_names $subscription.ToRecipients
+        cc_subscribers = & $recipient_names $subscription.CcRecipients
+        bcc_subscribers = & $recipient_names $subscription.BccRecipients
+        criteria = $criteria
+    }
+}
+
+
+Function Format-PendingManagementResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM AgentPendingAction SDK object into a result hashtable.
+
+    .PARAMETER action
+    The AgentPendingAction object returned by Get-SCOMPendingManagement.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$action
+    )
+
+    return @{
+        agent_name = [string]$action.AgentName
+        management_server_name = [string]$action.ManagementServerName
+        action_type = [string]$action.AgentPendingActionType
+        last_modified = Format-DateTimeAsStringSafely -dateTimeObject $action.LastModified
+    }
+}
+
+
+Function Format-NotificationChannelResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM NotificationChannel SDK object into a result hashtable.
+
+    .PARAMETER channel
+    The NotificationChannel object returned by Get-SCOMNotificationChannel.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$channel
+    )
+
+    return @{
+        display_name = [string]$channel.DisplayName
+        channel_type = [string]$channel.ChannelType
+        action = [string]$channel.Action
+        endpoint = [string]$channel.Endpoint
+        management_group = [string]$channel.ManagementGroup
+    }
+}
+
+
+Function Format-NotificationSubscriberResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM NotificationSubscriber SDK object into a result hashtable.
+
+    .PARAMETER subscriber
+    The NotificationSubscriber object returned by Get-SCOMNotificationSubscriber.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$subscriber
+    )
+
+    $devices = [System.Collections.Generic.List[hashtable]]::new()
+    if ($null -ne $subscriber.Devices) {
+        foreach ($device in $subscriber.Devices) {
+            $devices.Add(@{
+                    name = [string]$device.Name
+                    protocol = [string]$device.Protocol
+                    address = [string]$device.Address
+                })
+        }
+    }
+
+    return @{
+        name = [string]$subscriber.Name
+        id = if ($null -ne $subscriber.Id) { $subscriber.Id.ToString() } else { "" }
+        devices = $devices.ToArray()
+    }
+}
+
+
+Function Format-RunAsAccountResult {
+    <#
+    .SYNOPSIS
+    Formats a SCOM RunAsAccount SDK object into a result hashtable.
+
+    .PARAMETER account
+    The RunAsAccount object returned by Get-SCOMRunAsAccount.
+    #>
+    param (
+        [Parameter(Mandatory = $true)][object]$account
+    )
+
+    return @{
+        id = $account.Id.ToString()
+        name = $account.Name
+        description = if ($null -ne $account.Description) { $account.Description } else { "" }
+        domain = if ($null -ne $account.Domain) { $account.Domain } else { "" }
+        user_name = if ($null -ne $account.UserName) { $account.UserName } else { "" }
+        account_type = if ($null -ne $account.AccountType) { $account.AccountType.ToString() } else { "" }
+        last_modified = Format-DateTimeAsStringSafely -dateTimeObject $account.LastModified
+    }
+}
+
+
 Function Test-SCOMManagementPackIdentifier {
     <#
     .SYNOPSIS
