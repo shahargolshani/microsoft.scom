@@ -125,8 +125,126 @@
         fail_msg: "management_pack_info did not return the expected pack"
 
     # =========================================================
-    # PHASE 5: remove
+    # PHASE 5: version upgrade (installed 1.0.0.0 → file 2.0.0.0)
     # =========================================================
+    - name: Write the upgraded management pack XML (version 2.0.0.0) to the SCOM host
+      ansible.windows.win_copy:
+        dest: "{{ scom_test_mp_remote_path }}"
+        content: |
+          <ManagementPack ContentReadable="true" SchemaVersion="2.0"
+            OriginalSchemaVersion="1.1"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+            <Manifest>
+              <Identity>
+                <ID>{{ scom_test_mp_id }}</ID>
+                <Version>2.0.0.0</Version>
+              </Identity>
+              <Name>{{ scom_test_mp_display_name }}</Name>
+              <References />
+            </Manifest>
+            <LanguagePacks>
+              <LanguagePack ID="ENU" IsDefault="true">
+                <DisplayStrings>
+                  <DisplayString ElementID="{{ scom_test_mp_id }}">
+                    <Name>{{ scom_test_mp_display_name }}</Name>
+                    <Description>Temporary MP created by microsoft.scom integration tests</Description>
+                  </DisplayString>
+                </DisplayStrings>
+              </LanguagePack>
+            </LanguagePacks>
+          </ManagementPack>
+
+    - name: Upgrade the management pack in check mode (1.0.0.0 → 2.0.0.0)
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      check_mode: true
+      register: _upgrade_check
+
+    - name: Assert upgrade check mode reports changed
+      ansible.builtin.assert:
+        that:
+          - _upgrade_check.changed == true
+        fail_msg: >-
+          management_pack check mode should report changed=true when the file
+          version (2.0.0.0) exceeds the installed version (1.0.0.0)
+
+    - name: Confirm check mode did not upgrade the pack
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info_after_upgrade_check
+
+    - name: Assert the pack is still at version 1.0.0.0 after check mode upgrade
+      ansible.builtin.assert:
+        that:
+          - (_info_after_upgrade_check.management_packs | first).version == '1.0.0.0'
+        fail_msg: "management_pack check mode must not upgrade the installed pack"
+
+    - name: Upgrade the management pack for real (1.0.0.0 → 2.0.0.0)
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      register: _upgrade
+
+    - name: Assert the pack was upgraded
+      ansible.builtin.assert:
+        that:
+          - _upgrade.changed == true
+          - _upgrade.management_pack.name == scom_test_mp_id
+          - _upgrade.management_pack.version == '2.0.0.0'
+        fail_msg: "management_pack did not upgrade the pack from 1.0.0.0 to 2.0.0.0"
+
+    - name: Confirm the pack is now at version 2.0.0.0
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info_after_upgrade
+
+    - name: Assert info shows the upgraded version
+      ansible.builtin.assert:
+        that:
+          - (_info_after_upgrade.management_packs | first).version == '2.0.0.0'
+        fail_msg: "management_pack_info did not reflect the upgraded version"
+
+    - name: Confirm upgrade is idempotent at version 2.0.0.0
+      microsoft.scom.management_pack:
+        path: "{{ scom_test_mp_remote_path }}"
+        state: present
+      register: _upgrade_idem
+
+    - name: Assert no change when file version matches installed version
+      ansible.builtin.assert:
+        that:
+          - _upgrade_idem.changed == false
+        fail_msg: "management_pack must be idempotent when file version equals installed version"
+
+    # =========================================================
+    # PHASE 6: remove
+    # =========================================================
+    - name: Remove the test management pack in check mode
+      microsoft.scom.management_pack:
+        name: "{{ scom_test_mp_id }}"
+        state: absent
+      check_mode: true
+      register: _remove_check
+
+    - name: Assert absent check mode reports changed
+      ansible.builtin.assert:
+        that:
+          - _remove_check.changed == true
+        fail_msg: "management_pack absent check mode should report changed=true for an installed pack"
+
+    - name: Confirm check mode did not remove the pack
+      microsoft.scom.management_pack_info:
+        name: "{{ scom_test_mp_id }}"
+      register: _info_after_remove_check
+
+    - name: Assert the pack is still installed after absent check mode
+      ansible.builtin.assert:
+        that:
+          - _info_after_remove_check.management_packs | length == 1
+        fail_msg: "management_pack absent check mode must not remove the pack"
+
     - name: Remove the test management pack
       microsoft.scom.management_pack:
         name: "{{ scom_test_mp_id }}"
@@ -164,7 +282,7 @@
 
   always:
     # =========================================================
-    # ALWAYS: remove the test pack and temp file regardless of failures
+    # ALWAYS: remove the test pack and temp files regardless of failures
     # =========================================================
     - name: Safety cleanup - remove the test management pack
       microsoft.scom.management_pack:
