@@ -1,0 +1,199 @@
+---
+# Integration tests for microsoft.scom.pending_management and its info module.
+#
+# Prerequisites:
+#   {{ scom_test_agent_name }} must have the SCOM agent installed manually (via MSI) and
+#   be visible in "Pending Management" on the SCOM management server before this suite runs.
+#   The SCOM security setting "Review new manual agent installations in pending management
+#   view" must be enabled.
+#
+# Test cycle:
+#   wait for agent → reject (check mode) → reject (real)
+#   → wait for reappearance → approve (check mode) → approve (real)
+#   → cleanup (always)
+#
+# The suite polls for the test agent at startup (up to 3 minutes) so it can
+# run back-to-back in a matrix: the cleanup task removes the agent from Agent
+# Managed, causing it to re-enter Pending Management after 1-2 minutes.
+
+- name: Run the pending_management and pending_management_info integration test suite
+  block:
+    # =========================================================
+    # PRE-CONDITION: wait for the test agent to appear in pending management
+    # Poll every 10 s for up to 3 minutes to allow time for the agent to
+    # reconnect after being removed by the cleanup of a previous test run.
+    # =========================================================
+    - name: Wait for the test agent to appear in pending management
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _pre_poll
+      until: _pre_poll.pending_management | length > 0
+      retries: 18
+      delay: 10
+
+    - name: Assert the test agent is in pending management
+      ansible.builtin.assert:
+        that:
+          - _pre_poll.pending_management | length == 1
+          - (_pre_poll.pending_management | first).agent_name == scom_test_agent_name
+        fail_msg: >-
+          {{ scom_test_agent_name }} did not appear in pending management within
+          3 minutes. Ensure the SCOM agent MSI was installed manually on the
+          client and the management server security setting allows pending
+          management.
+
+    # =========================================================
+    # PHASE 1: reject - check mode (must not change state)
+    # =========================================================
+    - name: Reject the test agent in check mode
+      microsoft.scom.pending_management:
+        agent_name: "{{ scom_test_agent_name }}"
+        state: reject
+      check_mode: true
+      register: _reject_check
+
+    - name: Assert reject check mode reports changed and includes the test agent
+      ansible.builtin.assert:
+        that:
+          - _reject_check.changed == true
+          - scom_test_agent_name in _reject_check.agents
+        fail_msg: "reject check mode should report changed=true for a matching pending agent"
+
+    - name: Verify check mode did not remove the agent from pending management
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _info_after_reject_check
+
+    - name: Assert the agent is still pending after reject check mode
+      ansible.builtin.assert:
+        that:
+          - _info_after_reject_check.pending_management | length == 1
+        fail_msg: "reject check mode must not remove the agent from pending management"
+
+    # =========================================================
+    # PHASE 2: reject - real
+    # =========================================================
+    - name: Reject the test agent
+      microsoft.scom.pending_management:
+        agent_name: "{{ scom_test_agent_name }}"
+        state: reject
+      register: _reject
+
+    - name: Wait 5 seconds for the rejection to propagate
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Query pending management to confirm the agent is no longer pending
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _info_after_reject
+
+    - name: Assert the agent was rejected and is absent from pending management
+      ansible.builtin.assert:
+        that:
+          - _reject.changed == true
+          - scom_test_agent_name in _reject.agents
+          - _info_after_reject.pending_management | length == 0
+        fail_msg: >-
+          Rejection failed: changed={{ _reject.changed }},
+          agents={{ _reject.agents }},
+          still_pending={{ _info_after_reject.pending_management | length }}
+
+    # =========================================================
+    # PHASE 3: wait for the agent to reappear in pending management
+    # After rejection the agent service retries the connection and
+    # reregisters automatically. This normally takes 1-2 minutes.
+    # =========================================================
+    - name: Wait for the test agent to reappear in pending management
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _poll
+      until: _poll.pending_management | length > 0
+      retries: 12
+      delay: 10
+
+    - name: Assert the agent reappeared in pending management
+      ansible.builtin.assert:
+        that:
+          - _poll.pending_management | length == 1
+          - (_poll.pending_management | first).agent_name == scom_test_agent_name
+        fail_msg: >-
+          {{ scom_test_agent_name }} did not reappear in pending management
+          within 2 minutes of being rejected.
+
+    # =========================================================
+    # PHASE 4: approve - check mode (must not change state)
+    # =========================================================
+    - name: Approve the test agent in check mode
+      microsoft.scom.pending_management:
+        agent_name: "{{ scom_test_agent_name }}"
+        state: approve
+      check_mode: true
+      register: _approve_check
+
+    - name: Assert approve check mode reports changed and includes the test agent
+      ansible.builtin.assert:
+        that:
+          - _approve_check.changed == true
+          - scom_test_agent_name in _approve_check.agents
+        fail_msg: "approve check mode should report changed=true for a matching pending agent"
+
+    - name: Verify check mode did not remove the agent from pending management
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _info_after_approve_check
+
+    - name: Assert the agent is still pending after approve check mode
+      ansible.builtin.assert:
+        that:
+          - _info_after_approve_check.pending_management | length == 1
+        fail_msg: "approve check mode must not remove the agent from pending management"
+
+    # =========================================================
+    # PHASE 5: approve - real
+    # =========================================================
+    - name: Approve the test agent
+      microsoft.scom.pending_management:
+        agent_name: "{{ scom_test_agent_name }}"
+        state: approve
+      register: _approve
+
+    - name: Wait 5 seconds for the approval to propagate
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Query pending management to confirm the agent is no longer pending
+      microsoft.scom.pending_management_info:
+        agent_name: "{{ scom_test_agent_name }}"
+      register: _info_after_approve
+
+    - name: Assert the agent was approved and is absent from pending management
+      ansible.builtin.assert:
+        that:
+          - _approve.changed == true
+          - scom_test_agent_name in _approve.agents
+          - _info_after_approve.pending_management | length == 0
+        fail_msg: >-
+          Approval failed: changed={{ _approve.changed }},
+          agents={{ _approve.agents }},
+          still_pending={{ _info_after_approve.pending_management | length }}
+
+  always:
+    # =========================================================
+    # CLEANUP: remove the agent from Agent Managed using the SCOM
+    # SDK so it will re-enter Pending Management on next reconnect.
+    # This is intentionally test-only cleanup and is not part of
+    # the pending_management module functionality.
+    # =========================================================
+    - name: Remove the test agent from Agent Managed (cleanup)
+      ansible.windows.win_powershell:
+        script: |
+          Import-Module OperationsManager
+          $agent = Get-SCOMAgent -DNSHostName "{{ scom_test_agent_name }}" -ErrorAction SilentlyContinue
+          if ($null -ne $agent) {
+              $agentType = [Microsoft.EnterpriseManagement.Administration.AgentManagedComputer]
+              $list = New-Object "System.Collections.Generic.List[$agentType]"
+              $list.Add($agent)
+              $agent.ManagementGroup.Administration.DeleteAgentManagedComputers($list)
+          }
+      failed_when: false
