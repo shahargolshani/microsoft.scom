@@ -3,7 +3,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION:
-  module: pending_management
+  module: pending_agent_request
   short_description: Approve or deny SCOM manual agent management requests.
   description:
     - Approves or denies SCOM agents that are awaiting manual approval.
@@ -58,16 +58,16 @@ DOCUMENTATION:
 
 EXAMPLES: |
   - name: Approve a specific pending agent
-    microsoft.scom.pending_management:
+    microsoft.scom.pending_agent_request:
       agent_name: "web01.contoso.com"
       state: approve
 
   - name: Approve all agents awaiting manual approval
-    microsoft.scom.pending_management:
+    microsoft.scom.pending_agent_request:
       state: approve
 
   - name: Reject a pending agent
-    microsoft.scom.pending_management:
+    microsoft.scom.pending_agent_request:
       agent_name: "rogue01.contoso.com"
       state: reject
 

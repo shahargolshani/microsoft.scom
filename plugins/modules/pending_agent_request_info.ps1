@@ -40,6 +40,6 @@ foreach ($action in $pending) {
 }
 
 $module.Result.changed = $false
-$module.Result.pending_management = $result_actions.ToArray()
+$module.Result.pending_agent_request = $result_actions.ToArray()
 
 $module.ExitJson()

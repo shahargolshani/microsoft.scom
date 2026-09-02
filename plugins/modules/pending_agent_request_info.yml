@@ -3,7 +3,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION:
-  module: pending_management_info
+  module: pending_agent_request_info
   short_description: Retrieve information about SCOM pending agent management requests.
   description:
     - Returns the list of SCOM agents awaiting a management action, such as manual approval.
@@ -25,15 +25,15 @@ DOCUMENTATION:
 
 EXAMPLES: |
   - name: Get all pending management requests
-    microsoft.scom.pending_management_info:
+    microsoft.scom.pending_agent_request_info:
     register: pending
 
   - name: Show agents awaiting manual approval
     ansible.builtin.debug:
-      msg: "{{ pending.pending_management | selectattr('action_type', 'equalto', 'ManualApproval') | map(attribute='agent_name') | list }}"
+      msg: "{{ pending.pending_agent_request | selectattr('action_type', 'equalto', 'ManualApproval') | map(attribute='agent_name') | list }}"
 
 RETURN:
-  pending_management:
+  pending_agent_request:
     description: The list of pending agent management requests. Empty when none match.
     returned: always
     type: list
