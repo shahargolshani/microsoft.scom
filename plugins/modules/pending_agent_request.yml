@@ -4,7 +4,7 @@
 
 DOCUMENTATION:
   module: pending_agent_request
-  short_description: Approve or deny SCOM manual agent management requests.
+  short_description: Approve or Reject SCOM manual agent management requests.
   description:
     - Approves or denies SCOM agents that are awaiting manual approval.
     - When an agent is deployed with manual approval required, it appears in the pending
@@ -24,7 +24,7 @@ DOCUMENTATION:
   options:
     agent_name:
       description:
-        - The fully qualified domain name of the agent to approve or deny.
+        - The fully qualified domain name of the agent to approve or reject.
         - When omitted, every agent awaiting manual approval is actioned.
       type: str
       required: false

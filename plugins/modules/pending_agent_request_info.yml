@@ -28,6 +28,11 @@ EXAMPLES: |
     microsoft.scom.pending_agent_request_info:
     register: pending
 
+  - name: Get pending management requests for a specific agent
+    microsoft.scom.pending_agent_request_info:
+      agent_name: "web01.contoso.com"
+    register: pending
+
   - name: Show agents awaiting manual approval
     ansible.builtin.debug:
       msg: "{{ pending.pending_agent_request | selectattr('action_type', 'equalto', 'ManualApproval') | map(attribute='agent_name') | list }}"
