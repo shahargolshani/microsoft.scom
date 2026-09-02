@@ -1,0 +1,79 @@
+---
+# Copyright: (c) 2026, Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+DOCUMENTATION:
+  module: pending_agent_request
+  short_description: Approve or Reject SCOM manual agent management requests.
+  description:
+    - Approves or denies SCOM agents that are awaiting manual approval.
+    - When an agent is deployed with manual approval required, it appears in the pending
+      management list until an administrator approves or rejects it. This module actions
+      those requests.
+    - Only requests of type C(ManualApproval) are considered. Other pending action types
+      (for example C(PushInstall) or C(UpdateAgent)) represent in-progress operations and
+      are never actioned.
+    - Idempotent - when there is nothing awaiting manual approval (matching the optional
+      O(agent_name) filter), the module reports no change.
+    - Supports check mode.
+  author:
+    - Shahar Golshani (@shahargolshani)
+    - Ansible Ecosystem Engineering team (@eco-ansible-content)
+  extends_documentation_fragment:
+    - microsoft.scom.uses_scom_ps_module
+  options:
+    agent_name:
+      description:
+        - The fully qualified domain name of the agent to approve or reject.
+        - When omitted, every agent awaiting manual approval is actioned.
+      type: str
+      required: false
+    state:
+      description:
+        - C(approve) accepts the pending agents into the management group.
+        - C(reject) removes the pending approval request. This does B(not) uninstall
+          the agent software from the client machine. If the agent service is still
+          running on the client it will reconnect and reappear in pending management.
+          Uninstall the agent on the client first if you want to permanently block it.
+      type: str
+      required: false
+      default: approve
+      choices:
+        - approve
+        - reject
+    action_account_username:
+      description:
+        - The user name of the action account used to complete the agent approval.
+        - Only used when O(state=approve). Must be provided together with
+          O(action_account_password).
+      type: str
+      required: false
+    action_account_password:
+      description:
+        - The password of the action account used to complete the agent approval.
+        - Only used when O(state=approve). Must be provided together with
+          O(action_account_username).
+      type: str
+      required: false
+
+EXAMPLES: |
+  - name: Approve a specific pending agent
+    microsoft.scom.pending_agent_request:
+      agent_name: "web01.contoso.com"
+      state: approve
+
+  - name: Approve all agents awaiting manual approval
+    microsoft.scom.pending_agent_request:
+      state: approve
+
+  - name: Reject a pending agent
+    microsoft.scom.pending_agent_request:
+      agent_name: "rogue01.contoso.com"
+      state: reject
+
+RETURN:
+  agents:
+    description: The fully qualified names of the agents that were (or in check mode, would be) actioned.
+    returned: always
+    type: list
+    elements: str

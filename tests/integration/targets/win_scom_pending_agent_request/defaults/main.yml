@@ -1,0 +1,4 @@
+---
+# The real agent that must be in Pending Management before this test runs.
+# Install the SCOM agent MSI on this machine manually so it registers for approval.
+scom_test_agent_name: "WIN-BOP40LF6REQ.eco.ansible.com"

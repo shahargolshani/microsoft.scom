@@ -1,0 +1,58 @@
+---
+# Copyright: (c) 2026, Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+DOCUMENTATION:
+  module: pending_agent_request_info
+  short_description: Retrieve information about SCOM pending agent management requests.
+  description:
+    - Returns the list of SCOM agents awaiting a management action, such as manual approval.
+    - Optionally filters to a single agent by its fully qualified domain name.
+    - This is a read-only module and never changes the SCOM environment.
+    - Supports check mode.
+  author:
+    - Shahar Golshani (@shahargolshani)
+    - Ansible Ecosystem Engineering team (@eco-ansible-content)
+  extends_documentation_fragment:
+    - microsoft.scom.uses_scom_ps_module
+  options:
+    agent_name:
+      description:
+        - Restrict the result to the agent with this fully qualified domain name.
+        - When omitted, all pending management requests are returned.
+      type: str
+      required: false
+
+EXAMPLES: |
+  - name: Get all pending management requests
+    microsoft.scom.pending_agent_request_info:
+    register: pending
+
+  - name: Get pending management requests for a specific agent
+    microsoft.scom.pending_agent_request_info:
+      agent_name: "web01.contoso.com"
+    register: pending
+
+  - name: Show agents awaiting manual approval
+    ansible.builtin.debug:
+      msg: "{{ pending.pending_agent_request | selectattr('action_type', 'equalto', 'ManualApproval') | map(attribute='agent_name') | list }}"
+
+RETURN:
+  pending_agent_request:
+    description: The list of pending agent management requests. Empty when none match.
+    returned: always
+    type: list
+    elements: dict
+    contains:
+      agent_name:
+        description: The fully qualified domain name of the pending agent.
+        type: str
+      management_server_name:
+        description: The management server handling the pending action.
+        type: str
+      action_type:
+        description: The type of pending action (for example C(ManualApproval), C(PushInstall)).
+        type: str
+      last_modified:
+        description: The time the pending action was last modified.
+        type: str
