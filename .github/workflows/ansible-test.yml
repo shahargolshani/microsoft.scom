@@ -1,7 +1,7 @@
 ---
 name: Ansible Test
 on:
-  # Run CI against all pushes (direct commits, also merged PRs), Pull Requests
+
   pull_request_target:
     types: [opened, synchronize]
 
@@ -26,13 +26,26 @@ concurrency:
     }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  # Approve protected environment once instead of once per job in the matrix.
+  # detect-changes depends on this so no PR code runs before a maintainer approves.
+  approve:
+    name: Approve Integration
+    runs-on: ubuntu-latest
+    environment:
+      name: eco-scom
+    steps:
+      - run: echo "Deployment approved"
+
   # Determine which integration test targets need to run based on changed files.
-  # For PRs: only targets whose module/module_utils/test files changed.
-  # For pushes to main/stable-*: all win_scom_* targets (safety net).
   detect-changes:
     name: Detect Changed Modules
     runs-on: ubuntu-latest
+    needs: [approve]
     outputs:
       cli_args: ${{ steps.targets.outputs.cli_args }}
       has_targets: ${{ steps.targets.outputs.has_targets }}
@@ -63,13 +76,67 @@ jobs:
             # pull_request_target → selective based on changed files
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-            # Ensure both commits are available for the diff
             git fetch origin "${BASE_SHA}" 2>/dev/null || true
             git fetch origin "${HEAD_SHA}" 2>/dev/null || true
             CHANGED=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
             echo "Changed files:"
             echo "${CHANGED:-  (none)}"
-            TARGETS=$(echo "${CHANGED}" | bash scripts/get_integration_targets.sh)
+
+            # ---------------------------------------------------------------
+            # Inlined target-detection logic (was: scripts/get_integration_targets.sh)
+            #
+            # Mapping rules:
+            #   plugins/modules/<name>.ps1|.yml      → win_scom_<name>
+            #   plugins/modules/<name>_info.ps1|.yml → win_scom_<name>  (strip _info)
+            #   plugins/module_utils/*               → ALL win_scom_* targets
+            #   tests/integration/targets/win_scom_* → win_scom_<name>
+            # ---------------------------------------------------------------
+            MODULES_DIR="plugins/modules"
+            MODULE_UTILS_DIR="plugins/module_utils"
+            INTEGRATION_DIR="tests/integration/targets"
+            targets=""
+            run_all=false
+
+            while IFS= read -r file; do
+              [[ -z "$file" ]] && continue
+
+              # Any module_utils change → run ALL integration tests
+              if [[ "$file" == "${MODULE_UTILS_DIR}/"* ]]; then
+                run_all=true
+                break
+              fi
+
+              # Module source file changed (.ps1 or .yml)
+              if [[ "$file" == "${MODULES_DIR}/"*.ps1 || "$file" == "${MODULES_DIR}/"*.yml ]]; then
+                filename=$(basename "$file")
+                module_name="${filename%.*}"       # strip extension
+                base_name="${module_name%_info}"   # strip _info suffix
+                target="win_scom_${base_name}"
+                if [[ -d "${INTEGRATION_DIR}/${target}" ]] && \
+                   [[ " ${targets} " != *" ${target} "* ]]; then
+                  targets="${targets:+${targets} }${target}"
+                fi
+                continue
+              fi
+
+              # Integration test file changed directly
+              if [[ "$file" == "${INTEGRATION_DIR}/win_scom_"* ]]; then
+                rel="${file#"${INTEGRATION_DIR}/"}"
+                target="${rel%%/*}"
+                if [[ -d "${INTEGRATION_DIR}/${target}" ]] && \
+                   [[ " ${targets} " != *" ${target} "* ]]; then
+                  targets="${targets:+${targets} }${target}"
+                fi
+                continue
+              fi
+
+            done <<< "${CHANGED}"
+
+            if [[ "$run_all" == "true" ]]; then
+              TARGETS="ALL"
+            else
+              TARGETS="${targets}"
+            fi
           fi
 
           echo "Integration targets: ${TARGETS:-none}"
@@ -88,21 +155,11 @@ jobs:
             echo "has_targets=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Approve protected environment once instead of once per job in the matrix.
-  # Runs in parallel with detect-changes to avoid blocking the approver.
-  approve:
-    name: Approve Integration
-    runs-on: ubuntu-latest
-    environment:
-      name: eco-scom
-    steps:
-      - run: echo "Deployment approved"
-
   integration:
     runs-on: [self-hosted]
     needs:
-      - detect-changes
       - approve
+      - detect-changes
     # Skip entirely when no relevant files changed
     if: >-
       always() &&
